@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Auto SFX for Video</title>
+<style>
+:root{--bg:#eceef1;--card:#fff;--ink:#161a22;--mut:#5c6573;--line:#cfd4dc;--acc:#b8741a;--c1:#6a5acd;--c2:#2a9d8f;--c3:#d1495b;--c4:#b8741a;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12161d;--card:#1b212b;--ink:#e9ecf1;--mut:#97a1b0;--line:#2c3441;--acc:#e0a64a;--c1:#9d8fff;--c2:#4fd1c1;--c3:#ff7a8c;--c4:#e0a64a}}
+:root[data-theme="dark"]{--bg:#12161d;--card:#1b212b;--ink:#e9ecf1;--mut:#97a1b0;--line:#2c3441;--acc:#e0a64a;--c1:#9d8fff;--c2:#4fd1c1;--c3:#ff7a8c;--c4:#e0a64a}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Iowan Old Style","Palatino Linotype",Georgia,serif}
+main{max-width:760px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:2rem;line-height:1.15;margin:0 0 6px;letter-spacing:-.01em}
+.sub{color:var(--mut);margin:0 0 20px;max-width:60ch}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:14px}
+.drop{display:block;text-align:center;border:2px dashed var(--line);border-radius:10px;padding:28px 12px;cursor:pointer;color:var(--mut)}
+.drop:hover,.drop.on{border-color:var(--acc);color:var(--ink)}
+.drop input{display:none}
+video{width:100%;max-height:60vh;background:#000;border-radius:8px;display:block}
+.row{display:flex;flex-wrap:wrap;gap:10px 22px;align-items:center}
+label.ck{display:flex;gap:8px;align-items:center;cursor:pointer}
+.sl{display:flex;flex-direction:column;gap:2px;flex:1 1 200px;font:.85rem system-ui,sans-serif;color:var(--mut)}
+button{font:600 .95rem system-ui,sans-serif;padding:10px 16px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+button.p{background:var(--acc);border-color:var(--acc);color:#14100a}
+button:disabled{opacity:.45;cursor:not-allowed}
+button:focus-visible,input:focus-visible,.drop:focus-within{outline:2px solid var(--acc);outline-offset:2px}
+.tl{position:relative;height:56px;background:var(--bg);border:1px solid var(--line);border-radius:8px;margin-top:10px;overflow:hidden}
+.tl i{position:absolute;display:block}
+.tl .bar{top:6px;height:8px;border-radius:4px;opacity:.55}
+.tl .mk{width:3px;border-radius:2px;top:20px;height:30px}
+#st{font:.9rem system-ui,sans-serif;color:var(--mut);min-height:1.4em;margin:8px 0 0}
+#ev{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;font:.8rem system-ui,sans-serif}
+#ev span{border:1px solid var(--line);border-radius:999px;padding:2px 10px}
+.out a{font:600 .95rem system-ui,sans-serif;color:var(--acc)}
+.note{font:.85rem system-ui,sans-serif;color:var(--mut)}
+h2{font-size:1.05rem;margin:0 0 10px}
+</style>
+</head>
+<body>
+<main>
+<h1>Auto SFX for video</h1>
+<p class="sub">Upload a clip. The page finds scene cuts, then adds a dark drone, whooshes on cuts, and a riser, silence and impact hit at the end. Everything runs in your browser; your video is never uploaded.</p>
+
+<div class="card">
+<label class="drop" id="drop"><input type="file" id="file" accept="video/*"><b id="dl">Choose a video</b><br><span class="note">or drop it here</span></label>
+</div>
+
+<div class="card" id="work" hidden>
+<video id="v" playsinline controls></video>
+<div class="tl" id="tl" aria-label="SFX timeline"></div>
+<div id="ev"></div>
+<p id="st" role="status"></p>
+</div>
+
+<div class="card" id="opt" hidden>
+<h2>What to add</h2>
+<div class="row">
+<label class="ck"><input type="checkbox" id="oDrone" checked> Low drone</label>
+<label class="ck"><input type="checkbox" id="oWhoosh" checked> Whoosh on cuts</label>
+<label class="ck"><input type="checkbox" id="oBell" checked> Bell on first cut</label>
+<label class="ck"><input type="checkbox" id="oEnd" checked> Riser + impact at end</label>
+<label class="ck"><input type="checkbox" id="oOrig" checked> Keep original audio</label>
+</div>
+<div class="row" style="margin-top:14px">
+<div class="sl">SFX volume<input type="range" id="vol" min="10" max="100" value="70"></div>
+<div class="sl">Cut sensitivity (higher finds more cuts)<input type="range" id="sens" min="1" max="40" value="22"></div>
+</div>
+</div>
+
+<div class="card" id="act" hidden>
+<div class="row" style="margin-bottom:14px"><button class="p" id="bAI">Detect sounds from what happens (AI)</button><span class="note" id="aiN">Claude looks at frames from your video (a book, a page turning, a door, footsteps...) and adds matching sounds.</span></div>
+<div class="row">
+<button class="p" id="bPrev">Preview with SFX</button>
+<button id="bStop" disabled>Stop</button>
+<button id="bWav">Download SFX track (WAV)</button>
+<button id="bVid">Export video with SFX</button>
+</div>
+<p class="note" style="margin:10px 0 0">Export plays the video in real time while recording, so a 30 second clip takes about 30 seconds. Keep this tab open. It works in desktop Chrome, Edge and Firefox. The result is a .webm file; use the WAV in CapCut or another editor if you need MP4.</p>
+<div class="out" id="out" style="margin-top:12px"></div>
+</div>
+</main>
+<script>
+const $=s=>document.getElementById(s),v=$('v');
+let ai=[],diffs=[],step=.25,T=0,events=[],ctx,orig,recDest,bus=null,busy=false;
+const st=t=>$('st').textContent=t, fm=t=>t.toFixed(1)+'s';
+
+/* ---------- synth ---------- */
+function nb(c){const n=c.sampleRate*2,b=c.createBuffer(1,n,c.sampleRate),d=b.getChannelData(0);for(let i=0;i<n;i++)d[i]=Math.random()*2-1;return b}
+function nz(c,o,t,d){const s=c.createBufferSource();s.buffer=nb(c);s.loop=true;s.start(t);s.stop(t+d+.05);return s}
+const S={
+drone(c,o,t,d){const fi=Math.min(3,d/3),g=c.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.5,t+fi);g.gain.setValueAtTime(.5,Math.max(t+fi,t+d-1.2));g.gain.linearRampToValueAtTime(0,t+d);
+const f=c.createBiquadFilter();f.type='lowpass';f.frequency.value=180;
+[55,55.7,82.4].forEach((fr,i)=>{const os=c.createOscillator(),og=c.createGain();os.type=i==2?'sine':'sawtooth';os.frequency.value=fr;og.gain.value=i==2?.15:.3;os.connect(og);og.connect(f);os.start(t);os.stop(t+d+.1)});
+const l=c.createOscillator(),lg=c.createGain();l.frequency.value=.2;lg.gain.value=60;l.connect(lg);lg.connect(f.frequency);l.start(t);l.stop(t+d+.1);f.connect(g);g.connect(o)},
+riser(c,o,t,d){const n=nz(c,o,t,d),b=c.createBiquadFilter(),g=c.createGain();b.type='bandpass';b.Q.value=1.5;b.frequency.setValueAtTime(200,t);b.frequency.exponentialRampToValueAtTime(7000,t+d);
+g.gain.setValueAtTime(.02,t);g.gain.linearRampToValueAtTime(.8,t+d);g.gain.setValueAtTime(0,t+d+.01);n.connect(b);b.connect(g);g.connect(o);
+const os=c.createOscillator(),og=c.createGain();os.frequency.setValueAtTime(90,t);os.frequency.exponentialRampToValueAtTime(900,t+d);og.gain.setValueAtTime(0,t);og.gain.linearRampToValueAtTime(.22,t+d);og.gain.setValueAtTime(0,t+d+.01);os.connect(og);og.connect(o);os.start(t);os.stop(t+d+.05)},
+whoosh(c,o,t){const n=nz(c,o,t,.9),b=c.createBiquadFilter(),g=c.createGain();b.type='bandpass';b.Q.value=.8;b.frequency.setValueAtTime(300,t);b.frequency.exponentialRampToValueAtTime(2500,t+.35);b.frequency.exponentialRampToValueAtTime(500,t+.85);
+g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.5,t+.35);g.gain.linearRampToValueAtTime(0,t+.85);n.connect(b);b.connect(g);g.connect(o)},
+impact(c,o,t){const os=c.createOscillator(),g=c.createGain();os.frequency.setValueAtTime(120,t);os.frequency.exponentialRampToValueAtTime(35,t+.6);g.gain.setValueAtTime(.95,t);g.gain.exponentialRampToValueAtTime(.001,t+2.2);os.connect(g);g.connect(o);os.start(t);os.stop(t+2.3);
+const n=nz(c,o,t,.6),f=c.createBiquadFilter(),ng=c.createGain();f.type='lowpass';f.frequency.value=900;ng.gain.setValueAtTime(.6,t);ng.gain.exponentialRampToValueAtTime(.001,t+.55);n.connect(f);f.connect(ng);ng.connect(o)},
+bell(c,o,t){[1,2.76,5.4,8.93].forEach((m,i)=>{const os=c.createOscillator(),g=c.createGain();os.frequency.value=220*m;g.gain.setValueAtTime(.35/(i+1),t);g.gain.exponentialRampToValueAtTime(.0005,t+3.2/(i+1));os.connect(g);g.connect(o);os.start(t);os.stop(t+3.3)})}
+};
+function bst(c,o,t,d,ty,f,q,v,a){const n=nz(c,o,t,d),b=c.createBiquadFilter(),g=c.createGain();b.type=ty;b.frequency.value=f;b.Q.value=q;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(v,t+(a||.01));g.gain.exponentialRampToValueAtTime(.001,t+d);n.connect(b);b.connect(g);g.connect(o)}
+function tn(c,o,t,f0,f1,d,v,ty){const os=c.createOscillator(),g=c.createGain();os.type=ty||'sine';os.frequency.setValueAtTime(f0,t);os.frequency.exponentialRampToValueAtTime(f1,t+d);g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.001,t+d);os.connect(g);g.connect(o);os.start(t);os.stop(t+d+.05)}
+Object.assign(S,{
+page(c,o,t){bst(c,o,t,.35,'bandpass',3500,.7,.5,.03);bst(c,o,t+.12,.2,'highpass',5000,.5,.25,.01)},
+rustle(c,o,t){for(let i=0;i<6;i++)bst(c,o,t+i*.07+Math.random()*.04,.09,'bandpass',2500+Math.random()*3000,.8,.3)},
+thud(c,o,t){tn(c,o,t,110,45,.35,.9);bst(c,o,t,.15,'lowpass',500,.7,.5)},
+knock(c,o,t){[0,.18,.36].forEach(x=>{tn(c,o,t+x,220,90,.12,.7);bst(c,o,t+x,.06,'lowpass',1200,.7,.3)})},
+step(c,o,t){tn(c,o,t,140,60,.15,.6);bst(c,o,t,.1,'lowpass',900,.7,.3)},
+clink(c,o,t){[2400,3700,5200].forEach((f,i)=>tn(c,o,t,f,f*.99,.5/(i+1),.25/(i+1)))},
+click(c,o,t){bst(c,o,t,.04,'highpass',3000,.7,.5,.002)},
+creak(c,o,t){const os=c.createOscillator(),f=c.createBiquadFilter(),g=c.createGain();os.type='sawtooth';os.frequency.setValueAtTime(90,t);os.frequency.linearRampToValueAtTime(160,t+.5);os.frequency.linearRampToValueAtTime(110,t+1.1);f.type='bandpass';f.frequency.value=700;f.Q.value=6;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.25,t+.3);g.gain.linearRampToValueAtTime(0,t+1.2);os.connect(f);f.connect(g);g.connect(o);os.start(t);os.stop(t+1.3)}
+});
+
+/* ---------- analysis ---------- */
+const seek=t=>new Promise(r=>{const h=()=>{v.removeEventListener('seeked',h);r()};v.addEventListener('seeked',h);v.currentTime=t});
+async function analyze(){
+ busy=true;lock(true);diffs=[];T=v.duration;step=Math.max(.25,T/480);
+ const c=document.createElement('canvas');c.width=32;c.height=18;const g=c.getContext('2d',{willReadFrequently:true});let prev=null;
+ const n=Math.floor(T/step);
+ for(let i=0;i<=n;i++){
+  await seek(Math.min(i*step,T-.05));g.drawImage(v,0,0,32,18);const d=g.getImageData(0,0,32,18).data;let s=0;
+  if(prev)for(let k=0;k<d.length;k+=4)s+=Math.abs(d[k]-prev[k])+Math.abs(d[k+1]-prev[k+1])+Math.abs(d[k+2]-prev[k+2]);
+  diffs.push(prev?s/(576*3*255):0);prev=d.slice();
+  if(i%8==0)st('Scanning frames '+Math.round(i/n*100)+'%');
+ }
+ await seek(0);busy=false;lock(false);build();
+}
+function cuts(){const thr=(41-$('sens').value)/160+.02,out=[];
+ for(let i=1;i<diffs.length;i++){const t=i*step;if(diffs[i]>thr&&diffs[i]>=(diffs[i-1]||0)&&(!out.length||t-out[out.length-1]>1))out.push(t)}return out}
+function build(){
+ events=[];const cs=cuts();
+ if($('oDrone').checked)events.push({k:'drone',t:0,d:Math.max(1,T-.5)});
+ if($('oWhoosh').checked)cs.forEach(t=>events.push({k:'whoosh',t:Math.max(0,t-.2)}));
+ if($('oBell').checked&&cs.length)events.push({k:'bell',t:cs[0]});
+ if($('oEnd').checked&&T>3){const re=T-2.2,rs=Math.max(0,re-5);events.push({k:'riser',t:rs,d:re-rs},{k:'impact',t:T-1.6})}
+ ai.forEach(e=>events.push(e));events.sort((a,b)=>a.t-b.t);draw();
+ st(cs.length+' scene cut'+(cs.length==1?'':'s')+' found. '+events.length+' sound events placed.');
+}
+function draw(){
+ const col={drone:'--c1',riser:'--c3',whoosh:'--c2',bell:'--c4',impact:'--c3'},tl=$('tl');tl.innerHTML='';
+ events.forEach(e=>{const i=document.createElement('i');i.style.left=e.t/T*100+'%';i.style.background='var('+(col[e.k]||'--c2')+')';
+  if(e.d){i.className='bar';i.style.width=e.d/T*100+'%';i.style.top=(e.k=='drone'?6:18)+'px'}else{i.className='mk'}tl.appendChild(i)});
+ $('ev').innerHTML=events.map((e,i)=>'<span'+(e.ai?' title="Click to remove" data-i="'+i+'" style="cursor:pointer;border-color:var(--acc)"':'')+'>'+(e.ai?esc(e.label)+' ('+e.k+') ':e.k+' ')+fm(e.t)+'</span>').join('');
+}
+
+/* ---------- playback / render ---------- */
+function setup(){
+ if(ctx)return;ctx=new (window.AudioContext||window.webkitAudioContext)();
+ const src=ctx.createMediaElementSource(v);orig=ctx.createGain();recDest=ctx.createMediaStreamDestination();
+ src.connect(orig);orig.connect(ctx.destination);orig.connect(recDest);
+}
+function schedule(c,o,offset){
+ events.forEach(e=>{let tt=e.t-offset,d=e.d;
+  if(d){if(tt+d<=0)return;if(tt<0){d+=tt;tt=0}if(d<.3)return}else if(tt<0)return;
+  S[e.k](c,o,c.currentTime*0+tt+(c===ctx?ctx.currentTime+.05:0),d)});
+}
+function stopAll(){if(bus){bus.disconnect();bus=null}v.pause();$('bStop').disabled=true;$('bPrev').disabled=false}
+async function play(offset){
+ setup();await ctx.resume();orig.gain.value=$('oOrig').checked?1:0;
+ bus=ctx.createGain();bus.gain.value=$('vol').value/100;bus.connect(ctx.destination);bus.connect(recDest);
+ schedule(ctx,bus,offset);v.currentTime=offset;await v.play();
+}
+$('bPrev').onclick=async()=>{$('bPrev').disabled=true;$('bStop').disabled=false;stopAllQuiet();await play(0)};
+function stopAllQuiet(){if(bus){bus.disconnect();bus=null}}
+$('bStop').onclick=stopAll;
+v.addEventListener('ended',()=>{if(!rec)stopAll()});
+
+let rec=null;
+$('bVid').onclick=async()=>{
+ if(!window.MediaRecorder||!(v.captureStream||v.mozCaptureStream)){st('This browser cannot record video. Use desktop Chrome, Edge or Firefox, or download the WAV track instead.');return}
+ stopAllQuiet();lock(true);st('Exporting. Do not close this tab.');
+ setup();await ctx.resume();await seek(0);
+ const vs=(v.captureStream||v.mozCaptureStream).call(v);
+ const stream=new MediaStream([...vs.getVideoTracks(),...recDest.stream.getAudioTracks()]);
+ const mt=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'].find(m=>MediaRecorder.isTypeSupported(m));
+ const ch=[];rec=new MediaRecorder(stream,mt?{mimeType:mt,videoBitsPerSecond:5e6}:{});
+ rec.ondataavailable=e=>e.data.size&&ch.push(e.data);
+ rec.onstop=()=>{const b=new Blob(ch,{type:'video/webm'}),u=URL.createObjectURL(b);rec=null;lock(false);st('Done.');
+  $('out').innerHTML='<video controls src="'+u+'" style="margin-bottom:10px"></video><a href="'+u+'" download="video-with-sfx.webm">Download video with SFX (.webm)</a>'};
+ const done=()=>{v.removeEventListener('ended',done);setTimeout(()=>{rec&&rec.state!='inactive'&&rec.stop();stopAllQuiet()},700)};
+ v.addEventListener('ended',done);
+ rec.start(250);await play(0);
+};
+$('bWav').onclick=async()=>{
+ st('Rendering SFX track...');lock(true);
+ const sr=44100,len=Math.ceil((T+2.5)*sr),oc=new OfflineAudioContext(2,len,sr),g=oc.createGain();g.gain.value=$('vol').value/100;g.connect(oc.destination);
+ schedule(oc,g,0);const buf=await oc.startRendering();
+ const u=URL.createObjectURL(wav(buf));$('out').innerHTML='<a href="'+u+'" download="sfx-track.wav">Download sfx-track.wav</a> <span class="note">Drop it on its own audio track under your video.</span>';
+ lock(false);st('SFX track ready.');
+};
+function wav(b){const n=b.length,ch=b.numberOfChannels,a=new ArrayBuffer(44+n*ch*2),dv=new DataView(a),w=(o,s)=>[...s].forEach((x,i)=>dv.setUint8(o+i,x.charCodeAt(0)));
+ w(0,'RIFF');dv.setUint32(4,36+n*ch*2,true);w(8,'WAVEfmt ');dv.setUint32(16,16,true);dv.setUint16(20,1,true);dv.setUint16(22,ch,true);dv.setUint32(24,b.sampleRate,true);dv.setUint32(28,b.sampleRate*ch*2,true);dv.setUint16(32,ch*2,true);dv.setUint16(34,16,true);w(36,'data');dv.setUint32(40,n*ch*2,true);
+ let o=44;const d=[];for(let i=0;i<ch;i++)d.push(b.getChannelData(i));
+ for(let i=0;i<n;i++)for(let k=0;k<ch;k++){const s=Math.max(-1,Math.min(1,d[k][i]));dv.setInt16(o,s<0?s*32768:s*32767,true);o+=2}
+ return new Blob([a],{type:'audio/wav'})}
+
+/* ---------- AI scene sounds ---------- */
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const KINDS=['page','rustle','thud','knock','step','clink','click','creak','whoosh','bell','impact'];
+$('ev').onclick=e=>{const i=e.target.dataset.i;if(i!=null){ai=ai.filter(a=>a!==events[i]);build()}};
+async function detect(){
+ const sample=window.claude&&await claude.use('sample'),note=$('aiN');
+ if(!sample){note.textContent='AI detection needs this page to be opened inside claude.ai.';return}
+ let lim;try{lim=await sample.limits()}catch(e){}
+ if(!lim||!lim.images){note.textContent='This view cannot send images to Claude, so AI detection is unavailable here.';return}
+ lock(true);stopAllQuiet();
+ const n=Math.max(2,Math.min(lim.images.maxCount||8,16,Math.ceil(T/1.5))),imgs=[],ts=[];
+ const c=document.createElement('canvas'),w=Math.min(640,v.videoWidth),h=Math.round(w*v.videoHeight/v.videoWidth);c.width=w;c.height=h;const g=c.getContext('2d');
+ try{
+  for(let i=0;i<n;i++){const t=Math.min(T-.05,(i+.5)*T/n);note.textContent='Capturing frame '+(i+1)+' of '+n+'...';await seek(t);g.drawImage(v,0,0,w,h);imgs.push(await new Promise(r=>c.toBlob(r,'image/jpeg',.8)));ts.push(+t.toFixed(2))}
+  await seek(0);
+  const p='You are a sound designer. The attached '+n+' images are frames from a '+T.toFixed(1)+' second video, in order, taken at these times in seconds: '+ts.join(', ')+'. For each visible action or object that would make a sound in real life (a book being set down, a page turning, a door opening, footsteps, metal clinking, paper rustling), decide when it happens and pick the closest sound from this list only: '+KINDS.join(', ')+'. Return ONLY a JSON array of objects {"t": seconds, "sound": one word from the list, "label": what you see, max 4 words}. Use times between 0 and '+T.toFixed(1)+', at most '+Math.min(20,n*2)+' items, never the same sound twice within 0.7 seconds, and skip frames where nothing makes a sound.';
+  note.textContent='Claude is looking at your frames...';
+  const r=await sample.json(p,{images:imgs,modelTier:'default'});
+  ai=(Array.isArray(r)?r:[]).filter(x=>x&&KINDS.includes(x.sound)&&isFinite(x.t)&&x.t>=0&&x.t<T).map(x=>({k:x.sound,t:+x.t,label:String(x.label||x.sound).slice(0,30),ai:1}));
+  build();note.textContent=ai.length?ai.length+' sounds added from what Claude saw. Click a sound below to remove it.':'Claude found nothing in these frames that makes a sound.';
+ }catch(e){note.textContent=({not_granted:'Permission was declined, so AI detection is off.',rate_limited:'Too many requests. Try again in a minute.',image_rejected:'The frames were rejected. Try a shorter or smaller video.',cancelled:''})[e&&e.code]??'AI detection failed. Try again.'}
+ finally{lock(false)}
+}
+$('bAI').onclick=detect;
+
+/* ---------- UI ---------- */
+function lock(x){['bPrev','bWav','bVid','bAI'].forEach(i=>$(i).disabled=x)}
+['oDrone','oWhoosh','oBell','oEnd','sens'].forEach(i=>$(i).addEventListener('input',()=>T&&!busy&&build()));
+function load(f){
+ if(!f||!f.type.startsWith('video/')){$('dl').textContent='That is not a video file. Choose an MP4, MOV or WebM.';return}
+ stopAllQuiet();$('out').innerHTML='';
+ ai=[];v.src=URL.createObjectURL(f);$('dl').textContent=f.name;
+ ['work','opt','act'].forEach(i=>$(i).hidden=false);lock(true);st('Loading video...');
+ v.onloadedmetadata=()=>{setup();analyze()};
+ v.onerror=()=>st('This browser cannot read that video. Try an MP4 (H.264) or WebM file.');
+}
+$('file').onchange=e=>load(e.target.files[0]);
+const dp=$('drop');
+['dragover','dragenter'].forEach(e=>dp.addEventListener(e,x=>{x.preventDefault();dp.classList.add('on')}));
+['dragleave','drop'].forEach(e=>dp.addEventListener(e,x=>{x.preventDefault();dp.classList.remove('on')}));
+dp.addEventListener('drop',e=>load(e.dataTransfer.files[0]));
+</script>
+</body>
+</html>
